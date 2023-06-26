@@ -399,18 +399,18 @@ func (w *GCWorker) leaderTick(ctx context.Context) error {
 		return errors.Trace(err)
 	}
 
-	// Gc safe point is not separated by keyspace now. The whole cluster has only one global gc safe point.
-	// So at least one TiDB with `keyspace-name` not set is required in the whole cluster to calculate and update gc safe point.
-	// If `keyspace-name` is set, the TiDB node will only do its own delete range, and will not calculate gc safe point and resolve locks.
-	// Note that when `keyspace-name` is set, `checkLeader` will be done within the key space.
-	// Therefore only one TiDB node in each key space will be responsible to do delete range.
-	if w.store.GetCodec().GetKeyspace() != nil {
-		err = w.runKeyspaceGCJob(ctx, concurrency)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		return nil
-	}
+	//// Gc safe point is not separated by keyspace now. The whole cluster has only one global gc safe point.
+	//// So at least one TiDB with `keyspace-name` not set is required in the whole cluster to calculate and update gc safe point.
+	//// If `keyspace-name` is set, the TiDB node will only do its own delete range, and will not calculate gc safe point and resolve locks.
+	//// Note that when `keyspace-name` is set, `checkLeader` will be done within the key space.
+	//// Therefore only one TiDB node in each key space will be responsible to do delete range.
+	//if w.store.GetCodec().GetKeyspace() != nil {
+	//	err = w.runKeyspaceGCJob(ctx, concurrency)
+	//	if err != nil {
+	//		return errors.Trace(err)
+	//	}
+	//	return nil
+	//}
 
 	ok, safePoint, err := w.prepare(ctx)
 	if err != nil {
@@ -738,7 +738,7 @@ func (w *GCWorker) calcNewSafePoint(ctx context.Context, now time.Time) (*time.T
 // service safePoint among all services.
 func (w *GCWorker) setGCWorkerServiceSafePoint(ctx context.Context, safePoint uint64) (uint64, error) {
 	// Sets TTL to MAX to make it permanently valid.
-	minSafePoint, err := w.pdClient.UpdateServiceGCSafePoint(ctx, gcWorkerServiceSafePointID, math.MaxInt64, safePoint)
+	minSafePoint, err := w.pdClient.UpdateServiceSafePointV2(ctx, uint32(w.store.GetCodec().GetKeyspaceID()), gcWorkerServiceSafePointID, math.MaxInt64, safePoint)
 	if err != nil {
 		logutil.Logger(ctx).Error("[gc worker] failed to update service safe point",
 			zap.String("uuid", w.uuid),
@@ -1820,7 +1820,8 @@ func (w *GCWorker) uploadSafePointToPD(ctx context.Context, safePoint uint64) er
 
 	bo := tikv.NewBackofferWithVars(ctx, gcOneRegionMaxBackoff, nil)
 	for {
-		newSafePoint, err = w.pdClient.UpdateGCSafePoint(ctx, safePoint)
+		keyspaceID := w.store.GetCodec().GetKeyspaceID()
+		newSafePoint, err = w.pdClient.UpdateGCSafePointV2(ctx, uint32(keyspaceID), safePoint)
 		if err != nil {
 			if errors.Cause(err) == context.Canceled {
 				return errors.Trace(err)
