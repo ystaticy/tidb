@@ -29,6 +29,7 @@ import (
 	"github.com/pingcap/tidb/pkg/tablecodec"
 	"github.com/pingcap/tidb/pkg/util/codec"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/pd/client/opt"
 	"go.uber.org/multierr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -224,7 +225,7 @@ func (c *TestClient) GetOperator(ctx context.Context, regionID uint64) (*pdpb.Ge
 	}, nil
 }
 
-func (c *TestClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*split.RegionInfo, error) {
+func (c *TestClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int, _ ...opt.GetRegionOption) ([]*split.RegionInfo, error) {
 	if c.InjectErr && c.InjectTimes > 0 {
 		c.InjectTimes -= 1
 		return nil, status.Error(codes.Unavailable, "not leader")
@@ -1093,7 +1094,7 @@ func (*fakeSplitClient) ScatterRegions(ctx context.Context, regionInfo []*split.
 func (*fakeSplitClient) GetOperator(ctx context.Context, regionID uint64) (*pdpb.GetOperatorResponse, error) {
 	return nil, nil
 }
-func (f *fakeSplitClient) ScanRegions(ctx context.Context, startKey, endKey []byte, limit int) ([]*split.RegionInfo, error) {
+func (f *fakeSplitClient) ScanRegions(ctx context.Context, startKey, endKey []byte, limit int, _ ...opt.GetRegionOption) ([]*split.RegionInfo, error) {
 	result := make([]*split.RegionInfo, 0)
 	count := 0
 	for _, rng := range f.regions {

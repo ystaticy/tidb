@@ -137,7 +137,7 @@ func (s *backfillDistScheduler) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	pdLeaderAddr := d.store.(tikv.Storage).GetRegionCache().PDClient().GetLeaderAddr()
+	pdLeaderAddr := d.store.(tikv.Storage).GetRegionCache().PDClient().GetLeaderURL()
 	bc, err := ingest.LitBackCtxMgr.Register(ctx, unique, job.ID, d.etcdCli, pdLeaderAddr, job.ReorgMeta.ResourceGroupName)
 	if err != nil {
 		return errors.Trace(err)

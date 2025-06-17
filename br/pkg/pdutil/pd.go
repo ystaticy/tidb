@@ -32,6 +32,8 @@ import (
 	"github.com/pingcap/tidb/pkg/store/pdtypes"
 	"github.com/pingcap/tidb/pkg/util/codec"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
+	"github.com/tikv/pd/client/pkg/caller"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -301,12 +303,12 @@ func NewPdController(
 		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(maxMsgSize)),
 	}
 	pdClient, err := pd.NewClientWithContext(
-		ctx, addrs, securityOption,
-		pd.WithGRPCDialOptions(maxCallMsgSize...),
+		ctx, caller.Component("br"), addrs, securityOption,
+		opt.WithGRPCDialOptions(maxCallMsgSize...),
 		// If the time too short, we may scatter a region many times, because
 		// the interface `ScatterRegions` may time out.
-		pd.WithCustomTimeoutOption(60*time.Second),
-		pd.WithMaxErrorRetry(3),
+		opt.WithCustomTimeoutOption(60*time.Second),
+		opt.WithMaxErrorRetry(3),
 	)
 	if err != nil {
 		log.Error("fail to create pd client", zap.Error(err))
@@ -348,7 +350,7 @@ func parseVersion(versionBytes []byte) *semver.Version {
 func (p *PdController) getAllPDAddrs() []string {
 	ret := make([]string, 0, len(p.addrs)+1)
 	if p.pdClient != nil {
-		ret = append(ret, p.pdClient.GetLeaderAddr())
+		ret = append(ret, p.pdClient.GetLeaderURL())
 	}
 	ret = append(ret, p.addrs...)
 	return ret

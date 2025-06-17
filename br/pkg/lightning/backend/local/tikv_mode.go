@@ -69,7 +69,7 @@ func (rc *switcher) switchTiKVMode(ctx context.Context, mode sstpb.SwitchMode, r
 	} else {
 		minState = tikv.StoreStateDisconnected
 	}
-	tls := rc.tls.WithHost(rc.pdCli.GetLeaderAddr())
+	tls := rc.tls.WithHost(rc.pdCli.GetLeaderURL())
 	// we ignore switch mode failure since it is not fatal.
 	// no need log the error, it is done in kv.SwitchMode already.
 	_ = tikv.ForAllStores(

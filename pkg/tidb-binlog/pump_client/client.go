@@ -30,6 +30,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/etcd"
 	pb "github.com/pingcap/tipb/go-binlog"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/pkg/caller"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -129,7 +130,7 @@ func NewPumpsClient(etcdURLs, strategy string, timeout time.Duration, securityOp
 	}
 
 	// get clusterid
-	pdCli, err := pd.NewClient(ectdEndpoints, securityOpt)
+	pdCli, err := pd.NewClient(caller.Component("pump"), ectdEndpoints, securityOpt)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -191,7 +192,7 @@ func NewLocalPumpsClient(etcdURLs, binlogSocket string, timeout time.Duration, s
 	}
 
 	// get clusterid
-	pdCli, err := pd.NewClient(ectdEndpoints, securityOpt)
+	pdCli, err := pd.NewClient(caller.Component("pump"), ectdEndpoints, securityOpt)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

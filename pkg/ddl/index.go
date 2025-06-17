@@ -973,7 +973,7 @@ func runIngestReorgJob(w *worker, d *ddlCtx, t *meta.Meta, job *model.Job,
 	var pdLeaderAddr string
 	if d != nil {
 		//nolint:forcetypeassert
-		pdLeaderAddr = d.store.(tikv.Storage).GetRegionCache().PDClient().GetLeaderAddr()
+		pdLeaderAddr = d.store.(tikv.Storage).GetRegionCache().PDClient().GetLeaderURL()
 	}
 	bc, err = ingest.LitBackCtxMgr.Register(ctx, allIndexInfos[0].Unique, job.ID, nil, pdLeaderAddr, job.ReorgMeta.ResourceGroupName)
 	if err != nil {
@@ -2014,7 +2014,7 @@ func (w *worker) addTableIndex(t table.Table, reorgInfo *reorgInfo) error {
 				return err
 			}
 			//nolint:forcetypeassert
-			pdLeaderAddr := w.store.(tikv.Storage).GetRegionCache().PDClient().GetLeaderAddr()
+			pdLeaderAddr := w.store.(tikv.Storage).GetRegionCache().PDClient().GetLeaderURL()
 			return checkDuplicateForUniqueIndex(w.ctx, t, reorgInfo, pdLeaderAddr)
 		}
 	}

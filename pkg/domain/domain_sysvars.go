@@ -21,6 +21,7 @@ import (
 
 	"github.com/pingcap/tidb/pkg/sessionctx/variable"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
 )
 
 // initDomainSysVars() is called when a domain is initialized.
@@ -57,14 +58,14 @@ func (do *Domain) setPDClientDynamicOption(name, sVal string) {
 		if err != nil {
 			break
 		}
-		err = do.updatePDClient(pd.MaxTSOBatchWaitInterval, time.Duration(float64(time.Millisecond)*val))
+		err = do.updatePDClient(opt.MaxTSOBatchWaitInterval, time.Duration(float64(time.Millisecond)*val))
 		if err != nil {
 			break
 		}
 		variable.MaxTSOBatchWaitInterval.Store(val)
 	case variable.TiDBEnableTSOFollowerProxy:
 		val := variable.TiDBOptOn(sVal)
-		err := do.updatePDClient(pd.EnableTSOFollowerProxy, val)
+		err := do.updatePDClient(opt.EnableTSOFollowerProxy, val)
 		if err != nil {
 			break
 		}
@@ -81,7 +82,7 @@ func (do *Domain) setGlobalResourceControl(enable bool) {
 }
 
 // updatePDClient is used to set the dynamic option into the PD client.
-func (do *Domain) updatePDClient(option pd.DynamicOption, val interface{}) error {
+func (do *Domain) updatePDClient(option opt.DynamicOption, val interface{}) error {
 	store, ok := do.store.(interface{ GetPDClient() pd.Client })
 	if !ok {
 		return nil

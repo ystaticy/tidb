@@ -59,7 +59,7 @@ type RegionBatchRequestSender struct {
 // NewRegionBatchRequestSender creates a RegionBatchRequestSender object.
 func NewRegionBatchRequestSender(cache *RegionCache, client tikv.Client, oracle oracle.Oracle, enableCollectExecutionInfo bool) *RegionBatchRequestSender {
 	return &RegionBatchRequestSender{
-		RegionRequestSender:        tikv.NewRegionRequestSender(cache.RegionCache, client, oracle),
+		RegionRequestSender:        tikv.NewRegionRequestSender(cache.RegionCache, client),
 		enableCollectExecutionInfo: enableCollectExecutionInfo,
 	}
 }
@@ -77,7 +77,7 @@ func (ss *RegionBatchRequestSender) SendReqToAddr(bo *Backoffer, rpcCtx *tikv.RP
 	start := time.Now()
 	resp, err = ss.GetClient().SendRequest(ctx, rpcCtx.Addr, req, timout)
 	if ss.Stats != nil && ss.enableCollectExecutionInfo {
-		ss.Stats.RecordRPCRuntimeStats(req.Type, time.Since(start))
+		tikv.RecordRegionRequestRuntimeStats(ss.Stats, req.Type, time.Since(start))
 	}
 	if err != nil {
 		cancel()

@@ -47,6 +47,7 @@ import (
 	"github.com/pingcap/tidb/pkg/table/tables"
 	"github.com/pingcap/tidb/pkg/util/syncutil"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/pkg/caller"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -126,7 +127,7 @@ func GetTiKVModeSwitcherWithPDClient(ctx context.Context, logger *zap.Logger) (p
 	}
 	tlsOpt := tls.ToPDSecurityOption()
 	addrs := strings.Split(tidbCfg.Path, ",")
-	pdCli, err := pd.NewClientWithContext(ctx, addrs, tlsOpt)
+	pdCli, err := pd.NewClientWithContext(ctx, caller.Component("importer"), addrs, tlsOpt)
 	if err != nil {
 		return nil, nil, errors.Trace(err)
 	}
@@ -162,7 +163,7 @@ func GetRegionSplitSizeKeys(ctx context.Context) (regionSplitSize int64, regionS
 	}
 	tlsOpt := tls.ToPDSecurityOption()
 	addrs := strings.Split(tidbCfg.Path, ",")
-	pdCli, err := pd.NewClientWithContext(ctx, addrs, tlsOpt)
+	pdCli, err := pd.NewClientWithContext(ctx, caller.Component("importer"), addrs, tlsOpt)
 	if err != nil {
 		return 0, 0, errors.Trace(err)
 	}

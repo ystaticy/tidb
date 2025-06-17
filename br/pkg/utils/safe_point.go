@@ -14,6 +14,7 @@ import (
 	berrors "github.com/pingcap/tidb/br/pkg/errors"
 	"github.com/tikv/client-go/v2/oracle"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -150,6 +151,6 @@ type FakePDClient struct {
 }
 
 // GetAllStores return fake stores.
-func (c FakePDClient) GetAllStores(context.Context, ...pd.GetStoreOption) ([]*metapb.Store, error) {
+func (c FakePDClient) GetAllStores(context.Context, ...opt.GetStoreOption) ([]*metapb.Store, error) {
 	return append([]*metapb.Store{}, c.Stores...), nil
 }

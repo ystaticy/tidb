@@ -40,7 +40,6 @@ import (
 	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/pingcap/tidb/pkg/util/sem"
 	"github.com/pingcap/tidb/pkg/util/sqlexec"
-	"github.com/tikv/client-go/v2/oracle/oracles"
 	"go.uber.org/zap"
 )
 
@@ -215,12 +214,14 @@ func (e *SetExecutor) setSysVariable(ctx context.Context, name string, v *expres
 	newSnapshotIsSet := newSnapshotTS > 0 && newSnapshotTS != oldSnapshotTS
 	if newSnapshotIsSet {
 		isStaleRead := name == variable.TiDBTxnReadTS
-		var ctxForReadTsValidator context.Context
-		if !isStaleRead {
-			ctxForReadTsValidator = context.WithValue(ctx, oracles.ValidateReadTSForTidbSnapshot{}, struct{}{})
-		} else {
-			ctxForReadTsValidator = ctx
-		}
+		var ctxForReadTsValidator context.Context = ctx
+		// oracles.ValidateReadTSForTidbSnapshot is not supported by client-go 7.5-cse
+		//
+		// if !isStaleRead {
+		// 	ctxForReadTsValidator = context.WithValue(ctx, oracles.ValidateReadTSForTidbSnapshot{}, struct{}{})
+		// } else {
+		// 	ctxForReadTsValidator = ctx
+		// }
 		err = sessionctx.ValidateSnapshotReadTS(ctxForReadTsValidator, e.Ctx().GetStore(), newSnapshotTS, isStaleRead)
 		if name != variable.TiDBTxnReadTS {
 			// Also check gc safe point for snapshot read.

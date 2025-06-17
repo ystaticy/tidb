@@ -66,6 +66,7 @@ import (
 	"github.com/tikv/client-go/v2/oracle"
 	tikvclient "github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -305,10 +306,10 @@ func (g *targetInfoGetter) CheckRequirements(ctx context.Context, checkCtx *back
 	if err := checkTiDBVersion(ctx, versionStr, localMinTiDBVersion, localMaxTiDBVersion); err != nil {
 		return err
 	}
-	if err := tikv.CheckPDVersion(ctx, g.tls, g.pdCli.GetLeaderAddr(), localMinPDVersion, localMaxPDVersion); err != nil {
+	if err := tikv.CheckPDVersion(ctx, g.tls, g.pdCli.GetLeaderURL(), localMinPDVersion, localMaxPDVersion); err != nil {
 		return err
 	}
-	if err := tikv.CheckTiKVVersion(ctx, g.tls, g.pdCli.GetLeaderAddr(), localMinTiKVVersion, localMaxTiKVVersion); err != nil {
+	if err := tikv.CheckTiKVVersion(ctx, g.tls, g.pdCli.GetLeaderURL(), localMinTiKVVersion, localMaxTiKVVersion); err != nil {
 		return err
 	}
 
@@ -700,7 +701,7 @@ func (local *Backend) TotalMemoryConsume() int64 {
 }
 
 func checkMultiIngestSupport(ctx context.Context, pdCtl *pdutil.PdController, importClientFactory ImportClientFactory) (bool, error) {
-	stores, err := pdCtl.GetPDClient().GetAllStores(ctx, pd.WithExcludeTombstone())
+	stores, err := pdCtl.GetPDClient().GetAllStores(ctx, opt.WithExcludeTombstone())
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -2056,7 +2057,7 @@ func getSplitConfFromStore(ctx context.Context, host string, tls *common.TLS) (
 // GetRegionSplitSizeKeys return region split size, region split keys, error
 func GetRegionSplitSizeKeys(ctx context.Context, cli pd.Client, tls *common.TLS) (
 	regionSplitSize int64, regionSplitKeys int64, err error) {
-	stores, err := cli.GetAllStores(ctx, pd.WithExcludeTombstone())
+	stores, err := cli.GetAllStores(ctx, opt.WithExcludeTombstone())
 	if err != nil {
 		return 0, 0, err
 	}

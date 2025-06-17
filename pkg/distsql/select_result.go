@@ -658,7 +658,7 @@ type selectResultRuntimeStats struct {
 	backoffSleep            map[string]time.Duration
 	totalProcessTime        time.Duration
 	totalWaitTime           time.Duration
-	reqStat                 *tikv.RegionRequestRuntimeStats
+	reqStat                 tikv.RegionRequestRuntimeStats
 	distSQLConcurrency      int
 	extraConcurrency        int
 	CoprCacheHitNum         int64

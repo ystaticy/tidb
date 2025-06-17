@@ -42,6 +42,8 @@ import (
 	"github.com/tikv/client-go/v2/tikvrpc"
 	"github.com/tikv/client-go/v2/util"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
+	"github.com/tikv/pd/client/pkg/caller"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -157,12 +159,12 @@ func (d TiKVDriver) OpenWithOptions(path string, options ...Option) (resStore kv
 		}
 	}()
 
-	pdCli, err = pd.NewClient(etcdAddrs, pd.SecurityOption{
+	pdCli, err = pd.NewClient(caller.Component("store"), etcdAddrs, pd.SecurityOption{
 		CAPath:   d.security.ClusterSSLCA,
 		CertPath: d.security.ClusterSSLCert,
 		KeyPath:  d.security.ClusterSSLKey,
 	},
-		pd.WithGRPCDialOptions(
+		opt.WithGRPCDialOptions(
 			// keep the same with etcd, see
 			// https://github.com/etcd-io/etcd/blob/5704c6148d798ea444db26a966394406d8c10526/server/etcdserver/api/v3rpc/grpc.go#L34
 			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32)),
@@ -171,8 +173,8 @@ func (d TiKVDriver) OpenWithOptions(path string, options ...Option) (resStore kv
 				Timeout: time.Duration(d.tikvConfig.GrpcKeepAliveTimeout) * time.Second,
 			}),
 		),
-		pd.WithCustomTimeoutOption(time.Duration(d.pdConfig.PDServerTimeout)*time.Second),
-		pd.WithForwardingOption(config.GetGlobalConfig().EnableForwarding))
+		opt.WithCustomTimeoutOption(time.Duration(d.pdConfig.PDServerTimeout)*time.Second),
+		opt.WithForwardingOption(config.GetGlobalConfig().EnableForwarding))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -301,7 +303,7 @@ func (s *tikvStore) EtcdAddrs() ([]string, error) {
 			}
 			continue
 		}
-		for _, member := range members {
+		for _, member := range members.Members {
 			if len(member.ClientUrls) > 0 {
 				u, err := url.Parse(member.ClientUrls[0])
 				if err != nil {

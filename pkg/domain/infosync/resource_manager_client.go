@@ -26,6 +26,7 @@ import (
 	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/pingcap/tidb/pkg/domain/resourcegroup"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
 )
 
 type mockResourceManagerClient struct {
@@ -58,7 +59,7 @@ func NewMockResourceManagerClient() pd.ResourceManagerClient {
 
 var _ pd.ResourceManagerClient = (*mockResourceManagerClient)(nil)
 
-func (m *mockResourceManagerClient) ListResourceGroups(ctx context.Context) ([]*rmpb.ResourceGroup, error) {
+func (m *mockResourceManagerClient) ListResourceGroups(ctx context.Context, opts ...pd.GetResourceGroupOption) ([]*rmpb.ResourceGroup, error) {
 	m.RLock()
 	defer m.RUnlock()
 	groups := make([]*rmpb.ResourceGroup, 0, len(m.groups))
@@ -68,7 +69,7 @@ func (m *mockResourceManagerClient) ListResourceGroups(ctx context.Context) ([]*
 	return groups, nil
 }
 
-func (m *mockResourceManagerClient) GetResourceGroup(ctx context.Context, name string) (*rmpb.ResourceGroup, error) {
+func (m *mockResourceManagerClient) GetResourceGroup(ctx context.Context, name string, opts ...pd.GetResourceGroupOption) (*rmpb.ResourceGroup, error) {
 	m.RLock()
 	defer m.RUnlock()
 	group, ok := m.groups[name]
@@ -144,7 +145,7 @@ func (m *mockResourceManagerClient) LoadResourceGroups(ctx context.Context) ([]*
 	return nil, 0, nil
 }
 
-func (m *mockResourceManagerClient) Watch(ctx context.Context, key []byte, opts ...pd.OpOption) (chan []*meta_storagepb.Event, error) {
+func (m *mockResourceManagerClient) Watch(ctx context.Context, key []byte, opts ...opt.MetaStorageOption) (chan []*meta_storagepb.Event, error) {
 	if bytes.Equal(pd.GroupSettingsPathPrefixBytes, key) {
 		return m.eventCh, nil
 	}

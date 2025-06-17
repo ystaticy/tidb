@@ -38,6 +38,7 @@ import (
 	"github.com/pingcap/tidb/pkg/types"
 	"github.com/pingcap/tidb/pkg/util/codec"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/pd/client/opt"
 	"go.uber.org/atomic"
 )
 
@@ -250,7 +251,7 @@ func (c *testSplitClient) GetOperator(ctx context.Context, regionID uint64) (*pd
 	}, nil
 }
 
-func (c *testSplitClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*split.RegionInfo, error) {
+func (c *testSplitClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int, _ ...opt.GetRegionOption) ([]*split.RegionInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

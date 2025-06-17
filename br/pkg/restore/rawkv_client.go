@@ -10,7 +10,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/hack"
 	"github.com/tikv/client-go/v2/config"
 	"github.com/tikv/client-go/v2/rawkv"
-	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
 )
 
 // RawkvClient is the interface for rawkv.client
@@ -28,8 +28,8 @@ func NewRawkvClient(ctx context.Context, pdAddrs []string, security config.Secur
 		ctx,
 		pdAddrs,
 		security,
-		pd.WithCustomTimeoutOption(10*time.Second),
-		pd.WithMaxErrorRetry(5))
+		opt.WithCustomTimeoutOption(10*time.Second),
+		opt.WithMaxErrorRetry(5))
 }
 
 type KVPair struct {

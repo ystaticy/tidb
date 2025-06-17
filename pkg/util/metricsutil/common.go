@@ -41,6 +41,8 @@ import (
 	topsqlreporter_metrics "github.com/pingcap/tidb/pkg/util/topsql/reporter/metrics"
 	tikvconfig "github.com/tikv/client-go/v2/config"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
+	"github.com/tikv/pd/client/pkg/caller"
 )
 
 // RegisterMetrics register metrics with const label 'keyspace_id' if keyspaceName set.
@@ -56,11 +58,11 @@ func RegisterMetrics() error {
 	}
 
 	timeoutSec := time.Duration(cfg.PDClient.PDServerTimeout) * time.Second
-	pdCli, err := pd.NewClient(pdAddrs, pd.SecurityOption{
+	pdCli, err := pd.NewClient(caller.Component("metrics"), pdAddrs, pd.SecurityOption{
 		CAPath:   cfg.Security.ClusterSSLCA,
 		CertPath: cfg.Security.ClusterSSLCert,
 		KeyPath:  cfg.Security.ClusterSSLKey,
-	}, pd.WithCustomTimeoutOption(timeoutSec))
+	}, opt.WithCustomTimeoutOption(timeoutSec))
 	if err != nil {
 		return err
 	}
@@ -81,8 +83,8 @@ func RegisterMetricsForBR(pdAddrs []string, keyspaceName string) error {
 	}
 
 	timeoutSec := 10 * time.Second
-	pdCli, err := pd.NewClient(pdAddrs, pd.SecurityOption{},
-		pd.WithCustomTimeoutOption(timeoutSec))
+	pdCli, err := pd.NewClient(caller.Component("br"), pdAddrs, pd.SecurityOption{},
+		opt.WithCustomTimeoutOption(timeoutSec))
 	if err != nil {
 		return err
 	}

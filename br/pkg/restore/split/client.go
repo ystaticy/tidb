@@ -31,6 +31,7 @@ import (
 	"github.com/pingcap/tidb/br/pkg/logutil"
 	"github.com/pingcap/tidb/pkg/store/pdtypes"
 	pd "github.com/tikv/pd/client"
+	"github.com/tikv/pd/client/opt"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -70,7 +71,7 @@ type SplitClient interface {
 	GetOperator(ctx context.Context, regionID uint64) (*pdpb.GetOperatorResponse, error)
 	// ScanRegions gets a list of regions, starts from the region that contains key.
 	// Limit limits the maximum number of regions returned.
-	ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*RegionInfo, error)
+	ScanRegions(ctx context.Context, key, endKey []byte, limit int, _ ...opt.GetRegionOption) ([]*RegionInfo, error)
 	// GetPlacementRule loads a placement rule from PD.
 	GetPlacementRule(ctx context.Context, groupID, ruleID string) (pdtypes.Rule, error)
 	// SetPlacementRule insert or update a placement rule to PD.
@@ -136,7 +137,7 @@ func (c *pdClient) ScatterRegions(ctx context.Context, regionInfo []*RegionInfo)
 			logutil.Key("end", v.Region.EndKey),
 			zap.Uint64("id", v.Region.Id))
 	}
-	resp, err := c.client.ScatterRegions(ctx, regionsID, pd.WithSkipStoreLimit())
+	resp, err := c.client.ScatterRegions(ctx, regionsID, opt.WithSkipStoreLimit())
 	if err != nil {
 		return err
 	}
@@ -514,7 +515,7 @@ func (c *pdClient) GetOperator(ctx context.Context, regionID uint64) (*pdpb.GetO
 	return c.client.GetOperator(ctx, regionID)
 }
 
-func (c *pdClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*RegionInfo, error) {
+func (c *pdClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int, _ ...opt.GetRegionOption) ([]*RegionInfo, error) {
 	failpoint.Inject("no-leader-error", func(_ failpoint.Value) {
 		logutil.CL(ctx).Debug("failpoint no-leader-error injected.")
 		failpoint.Return(nil, status.Error(codes.Unavailable, "not leader"))
@@ -630,7 +631,7 @@ func (c *pdClient) SetStoresLabel(
 }
 
 func (c *pdClient) getPDAPIAddr() string {
-	addr := c.client.GetLeaderAddr()
+	addr := c.client.GetLeaderURL()
 	if addr != "" && !strings.HasPrefix(addr, "http") {
 		addr = "http://" + addr
 	}

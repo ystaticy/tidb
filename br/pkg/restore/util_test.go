@@ -22,6 +22,7 @@ import (
 	"github.com/pingcap/tidb/pkg/tablecodec"
 	"github.com/pingcap/tidb/pkg/util/codec"
 	"github.com/stretchr/testify/require"
+	"github.com/tikv/pd/client/opt"
 )
 
 func TestGetKeyRangeByMode(t *testing.T) {
@@ -388,7 +389,7 @@ type regionOnlineSlowClient struct {
 	missingRegion2 *split.RegionInfo
 }
 
-func (c *regionOnlineSlowClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int) ([]*split.RegionInfo, error) {
+func (c *regionOnlineSlowClient) ScanRegions(ctx context.Context, key, endKey []byte, limit int, _ ...opt.GetRegionOption) ([]*split.RegionInfo, error) {
 	c.scanRegionCnt++
 	var toAddRegion *split.RegionInfo
 	switch c.scanRegionCnt {
