@@ -25,6 +25,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/meta_storagepb"
 	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/pingcap/tidb/pkg/domain/resourcegroup"
+	"github.com/pingcap/tidb/pkg/keyspace"
 	pd "github.com/tikv/pd/client"
 	"github.com/tikv/pd/client/opt"
 )
@@ -146,7 +147,7 @@ func (m *mockResourceManagerClient) LoadResourceGroups(ctx context.Context) ([]*
 }
 
 func (m *mockResourceManagerClient) Watch(ctx context.Context, key []byte, opts ...opt.MetaStorageOption) (chan []*meta_storagepb.Event, error) {
-	if bytes.Equal(pd.GroupSettingsPathPrefixBytes, key) {
+	if bytes.Equal(pd.GroupSettingsPathPrefixBytes(keyspace.NullKeyspaceID), key) {
 		return m.eventCh, nil
 	}
 	return nil, nil

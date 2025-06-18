@@ -27,6 +27,9 @@ import (
 const (
 	// tidbKeyspaceEtcdPathPrefix is the keyspace prefix for etcd namespace
 	tidbKeyspaceEtcdPathPrefix = "/keyspaces/tidb/"
+
+	// NullKeyspaceID is used for API v1 or legacy path where is keyspace agnostic.
+	NullKeyspaceID = uint32(0xFFFFFFFF)
 )
 
 // CodecV1 represents api v1 codec.
