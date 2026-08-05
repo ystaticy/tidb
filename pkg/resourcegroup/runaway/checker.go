@@ -24,6 +24,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
+	"github.com/pingcap/tidb/pkg/config"
 	"github.com/pingcap/tidb/pkg/metrics"
 	"github.com/pingcap/tidb/pkg/util/dbterror/exeerrors"
 	"github.com/pingcap/tidb/pkg/util/logutil"
@@ -91,6 +92,7 @@ func NewChecker(
 // DeriveChecker derives a RunawayChecker from the given resource group
 func (rm *Manager) DeriveChecker(resourceGroupName, originalSQL, sqlDigest, planDigest string, startTime time.Time) *Checker {
 	group, err := rm.ResourceGroupCtl.GetResourceGroup(resourceGroupName)
+	logTempGetResourceGroupResult("derive_checker", resourceGroupName, group, err)
 	if err != nil || group == nil {
 		logutil.BgLogger().Warn("cannot setup up runaway checker", zap.Error(err))
 		return nil
@@ -168,6 +170,7 @@ func (r *Checker) checkSwitchGroupName(groupName string) string {
 		return ""
 	}
 	group, err := r.manager.ResourceGroupCtl.GetResourceGroup(groupName)
+	logTempGetResourceGroupResult("check_switch_group_name", groupName, group, err)
 	if err != nil || group == nil {
 		logutil.BgLogger().Debug("invalid switch resource group", zap.String("switch-group-name", groupName), zap.Error(err))
 		return ""
@@ -263,6 +266,7 @@ func (r *Checker) markQuarantine(now *time.Time, exceedCause string) {
 	}
 	// If the latest group settings have been changed, do not mark quarantine.
 	group, err := r.manager.ResourceGroupCtl.GetResourceGroup(r.resourceGroupName)
+	logTempGetResourceGroupResult("mark_quarantine", r.resourceGroupName, group, err)
 	if err != nil || group == nil || !proto.Equal(r.settings, group.RunawaySettings) {
 		return
 	}
@@ -270,6 +274,25 @@ func (r *Checker) markQuarantine(now *time.Time, exceedCause string) {
 
 	r.manager.markQuarantine(r.resourceGroupName, r.getSettingConvictIdentifier(), r.settings.Watch.Type,
 		r.settings.Action, r.settings.SwitchGroupName, ttl, now, exceedCause)
+}
+
+func logTempGetResourceGroupResult(callSite, requestedGroup string, group *rmpb.ResourceGroup, err error) {
+	resourceGroupText := "<nil>"
+	if group != nil {
+		resourceGroupText = proto.CompactTextString(group)
+	}
+	fields := []zap.Field{
+		zap.String("keyspaceName", config.GetGlobalKeyspaceName()),
+		zap.String("call_site", callSite),
+		zap.String("requested_resource_group", requestedGroup),
+		zap.String("resource_group", resourceGroupText),
+	}
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+		logutil.BgLogger().Warn("[test-get-rg] tidb got get resource group result", fields...)
+		return
+	}
+	logutil.BgLogger().Info("[test-get-rg] tidb got get resource group result", fields...)
 }
 
 func (r *Checker) markRunawayByIdentifyInRunawaySettings(now *time.Time, exceedCause string) {
