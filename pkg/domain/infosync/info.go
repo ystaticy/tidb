@@ -81,7 +81,8 @@ const (
 	// RequestRetryInterval is the sleep time before next retry for http request
 	RequestRetryInterval = 200 * time.Millisecond
 	// RequestPDMaxRetry is the max retry times for sync placement bundles
-	RequestPDMaxRetry = 3
+	RequestPDMaxRetry                    = 3
+	testGetResourceGroupSimulationPrefix = "__test_get_rg__"
 )
 
 // ErrPrometheusAddrIsNotSet is the error that Prometheus address is not set in PD and etcd
@@ -528,6 +529,25 @@ func PutRuleBundlesWithRetry(ctx context.Context, bundles []*placement.Bundle, m
 
 // GetResourceGroup is used to get one specific resource group from resource manager.
 func GetResourceGroup(ctx context.Context, name string) (*rmpb.ResourceGroup, error) {
+	if strings.HasPrefix(name, testGetResourceGroupSimulationPrefix) {
+		logutil.BgLogger().Warn("test-get-rg simulated GetResourceGroup waiting for caller context",
+			zap.String("resource_group", name))
+		<-ctx.Done()
+		err := ctx.Err()
+		if err == nil {
+			err = context.Canceled
+		}
+		logutil.BgLogger().Warn("test-get-rg simulated GetResourceGroup returning wrapped context error",
+			zap.String("resource_group", name),
+			zap.Error(err),
+			zap.Error(context.Cause(ctx)))
+		return nil, &errs.ErrClientGetResourceGroup{
+			ResourceGroupName: name,
+			Cause:             err.Error(),
+			Err:               err,
+		}
+	}
+
 	is, err := getGlobalInfoSyncer()
 	if err != nil {
 		return nil, err

@@ -1519,7 +1519,55 @@ const (
 	// mem quota for parsing SQL per token (similar method as above)
 	//    session.(*session).ParseSQL / threads / avg token count per SQL / 2 * 1.2(more 20%)
 	defParseSQLQuotaPerToken = 12036 * 12 / 10
+
+	testGetResourceGroupCancelComment   = "/* test-get-rg cancel */"
+	testGetResourceGroupDeadlineComment = "/* test-get-rg deadline */"
+	testGetResourceGroupNamePrefix      = "__test_get_rg__"
+	testGetResourceGroupDeadline        = 100 * time.Millisecond
 )
+
+func maybeRunTestGetResourceGroup(ctx context.Context, sql string) error {
+	mode := ""
+	switch {
+	case strings.Contains(sql, testGetResourceGroupCancelComment):
+		mode = "cancel"
+	case strings.Contains(sql, testGetResourceGroupDeadlineComment):
+		mode = "deadline"
+	default:
+		return nil
+	}
+
+	logutil.Logger(ctx).Warn("test-get-rg trigger",
+		zap.String("mode", mode),
+		zap.String("sql", sql))
+
+	requestCtx := ctx
+	cancel := func() {}
+	switch mode {
+	case "cancel":
+		requestCtx, cancel = context.WithCancel(ctx)
+		cancel()
+	case "deadline":
+		requestCtx, cancel = context.WithTimeout(ctx, testGetResourceGroupDeadline)
+		defer cancel()
+	}
+
+	_, err := infosync.GetResourceGroup(requestCtx, testGetResourceGroupNamePrefix+mode)
+	logutil.Logger(ctx).Warn("test-get-rg raw GetResourceGroup result",
+		zap.String("mode", mode),
+		zap.Error(err),
+		zap.Error(requestCtx.Err()))
+	if err == nil {
+		return nil
+	}
+	if ctxErr := requestCtx.Err(); ctxErr != nil && (stderrs.Is(err, context.Canceled) || stderrs.Is(err, context.DeadlineExceeded)) {
+		logutil.Logger(ctx).Warn("test-get-rg normalized to original context error",
+			zap.String("mode", mode),
+			zap.Error(ctxErr))
+		return ctxErr
+	}
+	return err
+}
 
 var keySQLToken = map[string]int{
 	"select": isSelectSQLToken,
@@ -2445,6 +2493,13 @@ func (s *session) executeStmtImpl(ctx context.Context, stmtNode ast.StmtNode) (s
 	}
 	// ResetContextOfStmt clears SQLKiller, so honor a canceled caller before executing the next statement.
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	sqlText := stmtNode.OriginalText()
+	if sqlText == "" {
+		sqlText = stmtNode.Text()
+	}
+	if err := maybeRunTestGetResourceGroup(ctx, sqlText); err != nil {
 		return nil, err
 	}
 	ruv2Metrics := execdetails.RUV2MetricsFromContext(ctx)
