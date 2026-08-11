@@ -97,13 +97,6 @@ function json_escape() {
     printf "%s" "${value}"
 }
 
-function toml_escape_basic() {
-    local value="$1"
-    value="${value//\\/\\\\}"
-    value="${value//\"/\\\"}"
-    printf "%s" "${value}"
-}
-
 function is_system_keyspace() {
     local value
     value="$(printf "%s" "$1" | tr '[:lower:]' '[:upper:]')"
@@ -265,10 +258,6 @@ function run_under_cluster() {
     local activate_export_id="${STARTER_ACTIVATE_EXPORT_ID:-starter-external-export}"
     local activate_max_idle_seconds="${STARTER_ACTIVATE_MAX_IDLE_SECONDS:-60}"
     local keyspace_observability="${STARTER_KEYSPACE_OBSERVABILITY:-}"
-    local external_workload_controller_addr="${STARTER_EXTERNAL_WORKLOAD_CONTROLLER_ADDR:-}"
-    local external_workload_role="${STARTER_EXTERNAL_WORKLOAD_ROLE:-master}"
-    local external_workload_tidb_pool="${STARTER_EXTERNAL_WORKLOAD_TIDB_POOL:-starter-smoke-pool}"
-    local post_activate_script="${STARTER_POST_ACTIVATE_SCRIPT:-}"
     if [[ -z "${keyspace_observability}" ]]; then
         keyspace_observability="${standby_mode}"
     fi
@@ -305,17 +294,6 @@ deploy-mode = "starter"
 max-allowed-packet = ${max_allowed_packet}
 tikv-worker-url = "${tikv_worker_url}"
 EOF
-
-    if [[ -n "${external_workload_controller_addr}" ]]; then
-        cat >> "${config_file}" <<EOF
-
-[external-workload]
-enable = true
-role = "$(toml_escape_basic "${external_workload_role}")"
-tidb-pool = "$(toml_escape_basic "${external_workload_tidb_pool}")"
-controller-addr = "$(toml_escape_basic "${external_workload_controller_addr}")"
-EOF
-    fi
 
     local activate_metadata_json=""
     if is_true "${keyspace_observability}"; then
@@ -390,14 +368,6 @@ EOF
         export TIDB_STARTER_KEYSPACE_OBSERVABILITY=1
         export TIDB_STARTER_KEYSPACE_META_TENANT="${keyspace_meta_tenant}"
         export TIDB_STARTER_KEYSPACE_META_PROJECT="${keyspace_meta_project}"
-    fi
-    if [[ -n "${post_activate_script}" ]]; then
-        if [[ ! -x "${post_activate_script}" ]]; then
-            echo "STARTER_POST_ACTIVATE_SCRIPT '${post_activate_script}' does not exist or is not executable." >&2
-            return 1
-        fi
-        echo "Running starter post-activate script: ${post_activate_script}"
-        "${post_activate_script}"
     fi
 
     echo "Running external starter tests: ./tests/realtikvtest/${test_suite}"
