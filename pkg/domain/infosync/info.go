@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"math"
@@ -35,6 +36,7 @@ import (
 	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/pkg/config"
+	"github.com/pingcap/tidb/pkg/config/deploymode"
 	"github.com/pingcap/tidb/pkg/ddl/label"
 	"github.com/pingcap/tidb/pkg/ddl/placement"
 	"github.com/pingcap/tidb/pkg/ddl/util"
@@ -63,6 +65,8 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -84,6 +88,9 @@ const (
 	RequestRetryInterval = 200 * time.Millisecond
 	// RequestPDMaxRetry is the max retry times for sync placement bundles
 	RequestPDMaxRetry = 3
+
+	defaultDegradedRUFillRate   = 2_000_000
+	defaultDegradedRUBurstLimit = 50_000_000_000
 )
 
 // ErrPrometheusAddrIsNotSet is the error that Prometheus address is not set in PD and etcd
@@ -534,7 +541,71 @@ func GetResourceGroup(ctx context.Context, name string) (*rmpb.ResourceGroup, er
 		return nil, err
 	}
 
-	return is.resourceManagerClient.GetResourceGroup(ctx, name)
+	group, err := is.resourceManagerClient.GetResourceGroup(ctx, name)
+	if !shouldUseDegradedResourceGroup(err) {
+		return group, err
+	}
+	return newDegradedResourceGroup(name), nil
+}
+
+func newDegradedResourceGroup(name string) *rmpb.ResourceGroup {
+	return &rmpb.ResourceGroup{
+		Name: name,
+		Mode: rmpb.GroupMode_RUMode,
+		RUSettings: &rmpb.GroupRequestUnitSettings{
+			RU: &rmpb.TokenBucket{
+				Settings: &rmpb.TokenLimitSettings{
+					FillRate:   defaultDegradedRUFillRate,
+					BurstLimit: defaultDegradedRUBurstLimit,
+				},
+			},
+		},
+	}
+}
+
+func unwrapGetResourceGroupError(err error) error {
+	for err != nil {
+		var groupErr *errs.ErrClientGetResourceGroup
+		if !goerrors.As(err, &groupErr) || groupErr.Err == nil || groupErr.Err == err {
+			return err
+		}
+		err = groupErr.Err
+	}
+	return nil
+}
+
+func isResourceGroupNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "PD:resourcemanager:ErrGroupNotExists") ||
+		strings.Contains(msg, "resource group does not exist")
+}
+
+func shouldUseDegradedResourceGroup(err error) bool {
+	if !deploymode.IsStarter() || !config.GetGlobalConfig().StarterParams.EnableRGFallback || err == nil {
+		return false
+	}
+	if isResourceGroupNotFoundError(err) {
+		return false
+	}
+	if goerrors.Is(err, context.Canceled) || goerrors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	causeErr := unwrapGetResourceGroupError(err)
+	if errs.IsLeaderChange(causeErr) {
+		return true
+	}
+	switch status.Code(causeErr) {
+	case codes.Canceled:
+		return false
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 // ListResourceGroups is used to get all resource groups from resource manager.

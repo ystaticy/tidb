@@ -26,7 +26,10 @@ import (
 
 	"github.com/pingcap/failpoint"
 	keyspacepb "github.com/pingcap/kvproto/pkg/keyspacepb"
+	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/pingcap/tidb/pkg/config"
+	"github.com/pingcap/tidb/pkg/config/deploymode"
+	"github.com/pingcap/tidb/pkg/config/kerneltype"
 	"github.com/pingcap/tidb/pkg/ddl/placement"
 	"github.com/pingcap/tidb/pkg/domain/serverinfo"
 	"github.com/pingcap/tidb/pkg/keyspace"
@@ -34,8 +37,12 @@ import (
 	"github.com/pingcap/tidb/pkg/parser/ast"
 	"github.com/pingcap/tidb/pkg/testkit/testsetup"
 	"github.com/stretchr/testify/require"
+	pd "github.com/tikv/pd/client"
+	pderr "github.com/tikv/pd/client/errs"
 	pdhttp "github.com/tikv/pd/client/http"
 	"go.uber.org/goleak"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestMain(m *testing.M) {
@@ -111,6 +118,83 @@ func TestPutBundlesRetry(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.IsEmpty())
 	})
+}
+
+type resourceManagerClientStub struct {
+	pd.ResourceManagerClient
+	getResourceGroupErr error
+}
+
+func (c *resourceManagerClientStub) GetResourceGroup(context.Context, string, ...pd.GetResourceGroupOption) (*rmpb.ResourceGroup, error) {
+	return nil, c.getResourceGroupErr
+}
+
+func TestGetResourceGroupFallback(t *testing.T) {
+	if !kerneltype.IsNextGen() {
+		t.Skip("resource group fallback is only available in nextgen")
+	}
+
+	transientErr := status.Error(codes.Unavailable, "resource manager unavailable")
+	notFoundErr := errors.New("PD:resourcemanager:ErrGroupNotExists")
+	tests := []struct {
+		name         string
+		enable       bool
+		resourceErr  error
+		wantFallback bool
+	}{
+		{
+			name:         "enabled for transient error",
+			enable:       true,
+			resourceErr:  &pderr.ErrClientGetResourceGroup{ResourceGroupName: "test-group", Cause: transientErr.Error(), Err: transientErr},
+			wantFallback: true,
+		},
+		{
+			name:        "disabled",
+			enable:      false,
+			resourceErr: &pderr.ErrClientGetResourceGroup{ResourceGroupName: "test-group", Cause: transientErr.Error(), Err: transientErr},
+		},
+		{
+			name:        "resource group does not exist",
+			enable:      true,
+			resourceErr: &pderr.ErrClientGetResourceGroup{ResourceGroupName: "test-group", Cause: notFoundErr.Error(), Err: notFoundErr},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restoreConfig := config.RestoreFunc()
+			t.Cleanup(restoreConfig)
+			originalDeployMode := deploymode.Get()
+			t.Cleanup(func() {
+				require.NoError(t, deploymode.Set(originalDeployMode))
+			})
+
+			require.NoError(t, deploymode.Set(deploymode.Starter))
+			config.UpdateGlobal(func(conf *config.Config) {
+				conf.StarterParams.EnableRGFallback = tt.enable
+			})
+
+			is, err := GlobalInfoSyncerInit(context.Background(), "get-rg-fallback", func() uint64 { return 1 },
+				nil, nil, nil, nil, keyspace.CodecV1, false, nil)
+			require.NoError(t, err)
+			is.resourceManagerClient = &resourceManagerClientStub{
+				ResourceManagerClient: is.resourceManagerClient,
+				getResourceGroupErr:   tt.resourceErr,
+			}
+
+			group, err := GetResourceGroup(context.Background(), "test-group")
+			if tt.wantFallback {
+				require.NoError(t, err)
+				require.Equal(t, "test-group", group.Name)
+				require.Equal(t, rmpb.GroupMode_RUMode, group.Mode)
+				require.EqualValues(t, defaultDegradedRUFillRate, group.RUSettings.RU.Settings.FillRate)
+				require.EqualValues(t, defaultDegradedRUBurstLimit, group.RUSettings.RU.Settings.BurstLimit)
+				return
+			}
+			require.Error(t, err)
+			require.Nil(t, group)
+		})
+	}
 }
 
 func TestTiFlashManager(t *testing.T) {
